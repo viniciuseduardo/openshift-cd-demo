@@ -12,7 +12,7 @@ message: "Use the following credentials for login:\nJenkins: use your OpenShift 
 parameters:
 - displayName: Repository URL
   name: RESPOSITORY_URL
-  required: true
+  required: false
 - displayName: DEV project name
   value: dev
   name: DEV_PROJECT

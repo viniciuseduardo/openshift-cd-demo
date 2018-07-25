@@ -60,7 +60,7 @@ while :; do
             ;;
         --project-prefix)
             if [ -n "$2" ]; then
-                ARG_PROJECT_SUFFIX=$2
+                ARG_PROJECT_PREFIX=$2
                 shift
             else
                 printf 'ERROR: "--project-PREFIX" requires a non-empty value.\n' >&2
@@ -112,7 +112,7 @@ GITHUB_ACCOUNT=${GITHUB_ACCOUNT:-viniciuseduardo}
 GITHUB_REF=${GITHUB_REF:-ocp-3.9}
 
 function deploy() {
-  oc $ARG_OC_OPS new-project $PRJ_PREFIX-cicd  --display-name="CI/CD"
+  oc $ARG_OC_OPS new-project $PRJ_PREFIX-cicd  --display-name="Sys Manager - DevOps - CI/CD"
 
   sleep 2
 
