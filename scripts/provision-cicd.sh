@@ -12,25 +12,24 @@ function usage() {
     echo " $0 --help"
     echo
     echo "Example:"
-    echo " $0 deploy --project-suffix mydemo"
+    echo " $0 deploy"
     echo
     echo "COMMANDS:"
-    echo "   deploy                   Set up the demo projects and deploy demo apps"
-    echo "   delete                   Clean up and remove demo projects and objects"
-    echo "   idle                     Make all demo services idle"
-    echo "   unidle                   Make all demo services unidle"
+    echo "   deploy                   Configure CI/CD Stack in Openshift - Jenkins, Sonar, Nexus"
+    echo "   delete                   Clean up and remove all CI/CD resources"
+    echo "   idle                     Make all CI/CD services idle"
+    echo "   unidle                   Make all CI/CD services unidle"
     echo 
     echo "OPTIONS:"
-    echo "   --user [username]         The admin user for the demo projects. mandatory if logged in as system:admin"
-    echo "   --project-suffix [suffix] Suffix to be added to demo project names e.g. ci-SUFFIX. If empty, user will be used as suffix"
+    echo "   --user [username]         The admin user for the CI/CD projects. mandatory if logged in as system:admin"
+    echo "   --project-prefix [prefix] Prefix to be added to demo project names e.g. PREFIX-ci. If empty, user will be used as prefix"
     echo "   --ephemeral               Deploy demo without persistent storage. Default false"
-    echo "   --deploy-che              Deploy Eclipse Che as an online IDE for code changes. Default false"
     echo "   --oc-options              oc client options to pass to all oc commands e.g. --server https://my.openshift.com"
     echo
 }
 
 ARG_USERNAME=
-ARG_PROJECT_SUFFIX=
+ARG_PROJECT_PREFIX=
 ARG_COMMAND=
 ARG_EPHEMERAL=false
 ARG_OC_OPS=
@@ -59,12 +58,12 @@ while :; do
                 exit 255
             fi
             ;;
-        --project-suffix)
+        --project-prefix)
             if [ -n "$2" ]; then
                 ARG_PROJECT_SUFFIX=$2
                 shift
             else
-                printf 'ERROR: "--project-suffix" requires a non-empty value.\n' >&2
+                printf 'ERROR: "--project-PREFIX" requires a non-empty value.\n' >&2
                 usage
                 exit 255
             fi
@@ -108,55 +107,42 @@ done
 
 LOGGEDIN_USER=$(oc $ARG_OC_OPS whoami)
 OPENSHIFT_USER=${ARG_USERNAME:-$LOGGEDIN_USER}
-PRJ_SUFFIX=${ARG_PROJECT_SUFFIX:-`echo $OPENSHIFT_USER | sed -e 's/[-@].*//g'`}
+PRJ_PREFIX=${ARG_PROJECT_PREFIX:-`echo $OPENSHIFT_USER | sed -e 's/[-@].*//g'`}
 GITHUB_ACCOUNT=${GITHUB_ACCOUNT:-viniciuseduardo}
 GITHUB_REF=${GITHUB_REF:-ocp-3.9}
 
 function deploy() {
-  oc $ARG_OC_OPS new-project dev-$PRJ_SUFFIX   --display-name="Tasks - Dev"
-  oc $ARG_OC_OPS new-project stage-$PRJ_SUFFIX --display-name="Tasks - Stage"
-  oc $ARG_OC_OPS new-project cicd-$PRJ_SUFFIX  --display-name="CI/CD"
+  oc $ARG_OC_OPS new-project $PRJ_PREFIX-cicd  --display-name="CI/CD"
 
   sleep 2
 
-  oc $ARG_OC_OPS policy add-role-to-user edit system:serviceaccount:cicd-$PRJ_SUFFIX:jenkins -n dev-$PRJ_SUFFIX
-  oc $ARG_OC_OPS policy add-role-to-user edit system:serviceaccount:cicd-$PRJ_SUFFIX:jenkins -n stage-$PRJ_SUFFIX
-
   if [ $LOGGEDIN_USER == 'system:admin' ] ; then
-    oc $ARG_OC_OPS adm policy add-role-to-user admin $ARG_USERNAME -n dev-$PRJ_SUFFIX >/dev/null 2>&1
-    oc $ARG_OC_OPS adm policy add-role-to-user admin $ARG_USERNAME -n stage-$PRJ_SUFFIX >/dev/null 2>&1
-    oc $ARG_OC_OPS adm policy add-role-to-user admin $ARG_USERNAME -n cicd-$PRJ_SUFFIX >/dev/null 2>&1
+    oc $ARG_OC_OPS adm policy add-role-to-user admin $ARG_USERNAME -n $PRJ_PREFIX-cicd >/dev/null 2>&1
     
-    oc $ARG_OC_OPS annotate --overwrite namespace dev-$PRJ_SUFFIX   demo=openshift-cd-$PRJ_SUFFIX >/dev/null 2>&1
-    oc $ARG_OC_OPS annotate --overwrite namespace stage-$PRJ_SUFFIX demo=openshift-cd-$PRJ_SUFFIX >/dev/null 2>&1
-    oc $ARG_OC_OPS annotate --overwrite namespace cicd-$PRJ_SUFFIX  demo=openshift-cd-$PRJ_SUFFIX >/dev/null 2>&1
-
-    oc $ARG_OC_OPS adm pod-network join-projects --to=cicd-$PRJ_SUFFIX dev-$PRJ_SUFFIX stage-$PRJ_SUFFIX >/dev/null 2>&1
+    oc $ARG_OC_OPS annotate --overwrite namespace $PRJ_PREFIX-cicd  app=openshift-cd-$PRJ_PREFIX >/dev/null 2>&1
   fi
 
   sleep 2
 
-  oc new-app jenkins-persistent -n cicd-$PRJ_SUFFIX
+  oc new-app openshift/jenkins:custom -n $PRJ_PREFIX-cicd
 
   sleep 2
 
   local template=https://raw.githubusercontent.com/$GITHUB_ACCOUNT/openshift-cd-demo/$GITHUB_REF/cicd-template.yaml
   echo "Using template $template"
-  oc $ARG_OC_OPS new-app -f $template --param DEV_PROJECT=dev-$PRJ_SUFFIX --param STAGE_PROJECT=stage-$PRJ_SUFFIX --param=WITH_CHE=$ARG_DEPLOY_CHE --param=EPHEMERAL=$ARG_EPHEMERAL -n cicd-$PRJ_SUFFIX 
+  oc $ARG_OC_OPS new-app -f $template --param=EPHEMERAL=$ARG_EPHEMERAL -n $PRJ_PREFIX-cicd 
 }
 
 function make_idle() {
   echo_header "Idling Services"
-  oc $ARG_OC_OPS idle -n dev-$PRJ_SUFFIX --all
-  oc $ARG_OC_OPS idle -n stage-$PRJ_SUFFIX --all
-  oc $ARG_OC_OPS idle -n cicd-$PRJ_SUFFIX --all
+  oc $ARG_OC_OPS idle -n $PRJ_PREFIX-cicd --all
 }
 
 function make_unidle() {
   echo_header "Unidling Services"
   local _DIGIT_REGEX="^[[:digit:]]*$"
 
-  for project in dev-$PRJ_SUFFIX stage-$PRJ_SUFFIX cicd-$PRJ_SUFFIX
+  for project in $PRJ_PREFIX-cicd
   do
     for dc in $(oc $ARG_OC_OPS get dc -n $project -o=custom-columns=:.metadata.name); do
       local replicas=$(oc $ARG_OC_OPS get dc $dc --template='{{ index .metadata.annotations "idling.alpha.openshift.io/previous-scale"}}' -n $project 2>/dev/null)
@@ -194,9 +180,9 @@ function echo_header() {
 ################################################################################
 
 if [ "$LOGGEDIN_USER" == 'system:admin' ] && [ -z "$ARG_USERNAME" ] ; then
-  # for verify and delete, --project-suffix is enough
-  if [ "$ARG_COMMAND" == "delete" ] || [ "$ARG_COMMAND" == "verify" ] && [ -z "$ARG_PROJECT_SUFFIX" ]; then
-    echo "--user or --project-suffix must be provided when running $ARG_COMMAND as 'system:admin'"
+  # for verify and delete, --project-prefix is enough
+  if [ "$ARG_COMMAND" == "delete" ] || [ "$ARG_COMMAND" == "verify" ] && [ -z "$ARG_PROJECT_PREFIX" ]; then
+    echo "--user or --project-prefix must be provided when running $ARG_COMMAND as 'system:admin'"
     exit 255
   # deploy command
   elif [ "$ARG_COMMAND" != "delete" ] && [ "$ARG_COMMAND" != "verify" ] ; then
@@ -208,32 +194,32 @@ fi
 pushd ~ >/dev/null
 START=`date +%s`
 
-echo_header "OpenShift CI/CD Demo ($(date))"
+echo_header "OpenShift CI/CD Deploy ($(date))"
 
 case "$ARG_COMMAND" in
     delete)
-        echo "Delete demo..."
-        oc $ARG_OC_OPS delete project dev-$PRJ_SUFFIX stage-$PRJ_SUFFIX cicd-$PRJ_SUFFIX
+        echo "Delete CI/CD..."
+        oc $ARG_OC_OPS delete project dev-$PRJ_PREFIX stage-$PRJ_PREFIX $PRJ_PREFIX-cicd
         echo
         echo "Delete completed successfully!"
         ;;
       
     idle)
-        echo "Idling demo..."
+        echo "Idling CI/CD..."
         make_idle
         echo
         echo "Idling completed successfully!"
         ;;
 
     unidle)
-        echo "Unidling demo..."
+        echo "Unidling CI/CD..."
         make_unidle
         echo
         echo "Unidling completed successfully!"
         ;;
 
     deploy)
-        echo "Deploying demo..."
+        echo "Deploying CI/CD..."
         deploy
         echo
         echo "Provisioning completed successfully!"

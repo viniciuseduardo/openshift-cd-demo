@@ -6,10 +6,13 @@ labels:
 metadata:
   annotations:
     iconClass: icon-jenkins
-    tags: instant-app,jenkins,gogs,nexus,cicd
+    tags: instant-app,jenkins,nexus,cicd
   name: cicd
-message: "Use the following credentials for login:\nJenkins: use your OpenShift credentials\nNexus: admin/admin123\nSonarQube: admin/admin\nGogs Git Server: gogs/gogs"
+message: "Use the following credentials for login:\nJenkins: use your OpenShift credentials\nNexus: admin/admin123\nSonarQube: admin/admin\n"
 parameters:
+- displayName: Repository URL
+  name: RESPOSITORY_URL
+  required: true
 - displayName: DEV project name
   value: dev
   name: DEV_PROJECT
@@ -18,21 +21,16 @@ parameters:
   value: stage
   name: STAGE_PROJECT
   required: true
-- displayName: Deploy Eclipse Che
-  description: Deploy Eclipse Che in order to use as an online IDE for changing code in this demo
-  value: "false"
-  name: WITH_CHE
-  required: true
 - displayName: Ephemeral
-  description: Use no persistent storage for Gogs and Nexus
-  value: "true"
+  description: Use no persistent storage for Nexus
+  value: "false"
   name: EPHEMERAL
   required: true
 - description: Webhook secret
   from: '[a-zA-Z0-9]{8}'
   generate: expression
   name: WEBHOOK_SECRET
-  required: true
+  required: false
 objects:
 - apiVersion: v1
   groupNames: null
@@ -82,7 +80,7 @@ objects:
             stages {
               stage('Build App') {
                 steps {
-                  git branch: 'eap-7', url: 'http://gogs:3000/gogs/openshift-tasks.git'
+                  git branch: 'eap-7', url: '${RESPOSITORY_URL}'
                   script {
                       def pom = readMavenPom file: 'pom.xml'
                       version = pom.version
@@ -245,7 +243,7 @@ objects:
         <containers>
           <org.csanchez.jenkins.plugins.kubernetes.ContainerTemplate>
             <name>jnlp</name>
-            <image>registry.access.redhat.com/openshift3/jenkins-slave-maven-rhel7</image>
+            <image>docker.io/openshift/jenkins-slave-maven-centos7</image>
             <privileged>false</privileged>
             <alwaysPullImage>false</alwaysPullImage>
             <workingDir>/tmp</workingDir>
@@ -263,11 +261,46 @@ objects:
         <annotations/>
         <imagePullSecrets/>
       </org.csanchez.jenkins.plugins.kubernetes.PodTemplate>
-# Setup Demo
+    node-template: |-
+      <org.csanchez.jenkins.plugins.kubernetes.PodTemplate>
+        <inheritFrom></inheritFrom>
+        <name>node</name>
+        <privileged>false</privileged>
+        <alwaysPullImage>false</alwaysPullImage>
+        <instanceCap>2147483647</instanceCap>
+        <idleMinutes>0</idleMinutes>
+        <label>node</label>
+        <serviceAccount>jenkins</serviceAccount>
+        <nodeSelector></nodeSelector>
+        <customWorkspaceVolumeEnabled>false</customWorkspaceVolumeEnabled>
+        <workspaceVolume class="org.csanchez.jenkins.plugins.kubernetes.volumes.workspace.EmptyDirWorkspaceVolume">
+          <memory>false</memory>
+        </workspaceVolume>
+        <volumes />
+        <containers>
+          <org.csanchez.jenkins.plugins.kubernetes.ContainerTemplate>
+            <name>jnlp</name>
+            <image>docker.io/openshift/jenkins-slave-nodejs-centos7</image>
+            <privileged>false</privileged>
+            <alwaysPullImage>false</alwaysPullImage>
+            <workingDir>/tmp</workingDir>
+            <command></command>
+            <args>${computer.jnlpmac} ${computer.name}</args>
+            <ttyEnabled>false</ttyEnabled>
+            <resourceRequestCpu>200m</resourceRequestCpu>
+            <resourceRequestMemory>512Mi</resourceRequestMemory>
+            <envVars/>
+          </org.csanchez.jenkins.plugins.kubernetes.ContainerTemplate>
+        </containers>
+        <envVars/>
+        <annotations/>
+        <imagePullSecrets/>
+      </org.csanchez.jenkins.plugins.kubernetes.PodTemplate>      
+# Setup Project
 - apiVersion: batch/v1
   kind: Job
   metadata:
-    name: cicd-demo-installer
+    name: cicd-project-installer
   spec:
     activeDeadlineSeconds: 400
     completions: 1
@@ -289,102 +322,15 @@ objects:
             oc label dc jenkins app=jenkins --overwrite 
 
             HOSTNAME=$(oc get route jenkins -o template --template='{{.spec.host}}' | sed "s/jenkins-${CICD_NAMESPACE}.//g")
-            GOGS_HOSTNAME="gogs-$CICD_NAMESPACE.$HOSTNAME"
-
-            if [ "${EPHEMERAL}" == "true" ] ; then
-              oc new-app -f https://raw.githubusercontent.com/OpenShiftDemos/gogs-openshift-docker/master/openshift/gogs-template.yaml \
-                  --param=GOGS_VERSION=0.11.34 \
-                  --param=HOSTNAME=$GOGS_HOSTNAME \
-                  --param=SKIP_TLS_VERIFY=true
-            else
-              oc new-app -f https://raw.githubusercontent.com/OpenShiftDemos/gogs-openshift-docker/master/openshift/gogs-persistent-template.yaml \
-                  --param=GOGS_VERSION=0.11.34 \
-                  --param=HOSTNAME=$GOGS_HOSTNAME \
-                  --param=SKIP_TLS_VERIFY=true
-            fi
             
             sleep 5
 
-            oc new-app -f http://bit.ly/openshift-sonarqube-embedded-template --param=SONARQUBE_VERSION=7.0 --param=SONAR_MAX_MEMORY=6Gi
-
-            if [ "${WITH_CHE}" == "true" ] ; then
-              oc process -f https://raw.githubusercontent.com/minishift/minishift-addons/master/add-ons/che/templates/che-single-user.yml \
-                --param PROJECT_NAME=$CICD_NAMESPACE \
-                --param DOMAIN_NAME=$HOSTNAME \
-                --param OPENSHIFT_OAUTH_TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
-                | oc create -f -
-
-              oc set resources dc/che --limits=cpu=1,memory=2Gi --requests=cpu=200m,memory=512Mi
-            fi
+            oc new-app -f http://bit.ly/openshift-sonarqube-embedded-template --param=SONARQUBE_VERSION=7.0 --param=SONAR_MAX_MEMORY=4Gi
 
             if [ "${EPHEMERAL}" == "true" ] ; then
-              oc new-app -f https://raw.githubusercontent.com/OpenShiftDemos/nexus/master/nexus3-template.yaml --param=NEXUS_VERSION=3.7.1 --param=MAX_MEMORY=2Gi
+              oc new-app -f https://raw.githubusercontent.com/OpenShiftDemos/nexus/master/nexus3-template.yaml --param=NEXUS_VERSION=3.7.1 --param=MAX_MEMORY=1Gi
             else
-              oc new-app -f https://raw.githubusercontent.com/OpenShiftDemos/nexus/master/nexus3-persistent-template.yaml --param=NEXUS_VERSION=3.8.0 --param=MAX_MEMORY=2Gi
-            fi
-
-            GOGS_SVC=$(oc get svc gogs -o template --template='{{.spec.clusterIP}}')
-            GOGS_USER=gogs
-            GOGS_PWD=gogs
-
-            oc rollout status dc gogs
-
-            _RETURN=$(curl -o /tmp/curl.log -sL --post302 -w "%{http_code}" http://$GOGS_SVC:3000/user/sign_up \
-              --form user_name=$GOGS_USER \
-              --form password=$GOGS_PWD \
-              --form retype=$GOGS_PWD \
-              --form email=admin@gogs.com)
-
-            sleep 5
-
-            if [ $_RETURN != "200" ] && [ $_RETURN != "302" ] ; then
-              echo "ERROR: Failed to create Gogs admin"
-              cat /tmp/curl.log
-              exit 255
-            fi
-
-            sleep 10
-
-            cat <<EOF > /tmp/data.json
-            {
-              "clone_addr": "https://github.com/OpenShiftDemos/openshift-tasks.git",
-              "uid": 1,
-              "repo_name": "openshift-tasks"
-            }
-            EOF
-
-            _RETURN=$(curl -o /tmp/curl.log -sL -w "%{http_code}" -H "Content-Type: application/json" \
-            -u $GOGS_USER:$GOGS_PWD -X POST http://$GOGS_SVC:3000/api/v1/repos/migrate -d @/tmp/data.json)
-
-            if [ $_RETURN != "201" ] ;then
-              echo "ERROR: Failed to imported openshift-tasks GitHub repo"
-              cat /tmp/curl.log
-              exit 255
-            fi
-
-            sleep 5
-
-            cat <<EOF > /tmp/data.json
-            {
-              "type": "gogs",
-              "config": {
-                "url": "https://openshift.default.svc.cluster.local/oapi/v1/namespaces/$CICD_NAMESPACE/buildconfigs/tasks-pipeline/webhooks/${WEBHOOK_SECRET}/generic",
-                "content_type": "json"
-              },
-              "events": [
-                "push"
-              ],
-              "active": true
-            }
-            EOF
-
-            _RETURN=$(curl -o /tmp/curl.log -sL -w "%{http_code}" -H "Content-Type: application/json" \
-            -u $GOGS_USER:$GOGS_PWD -X POST http://$GOGS_SVC:3000/api/v1/repos/gogs/openshift-tasks/hooks -d @/tmp/data.json)
-
-            if [ $_RETURN != "201" ] ; then
-              echo "ERROR: Failed to set webhook"
-              cat /tmp/curl.log
-              exit 255
+              oc new-app -f https://raw.githubusercontent.com/OpenShiftDemos/nexus/master/nexus3-persistent-template.yaml --param=NEXUS_VERSION=3.8.0 --param=MAX_MEMORY=1Gi
             fi
           image: openshift/origin:v3.9.0
           name: cicd-demo-installer-job
