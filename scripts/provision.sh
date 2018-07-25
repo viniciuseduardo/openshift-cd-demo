@@ -140,7 +140,7 @@ function deploy() {
 
   sleep 2
 
-  oc new-app jenkins-ephemeral -n cicd-$PRJ_SUFFIX
+  oc new-app jenkins-persistent -n cicd-$PRJ_SUFFIX
 
   sleep 2
 
