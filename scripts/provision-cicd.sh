@@ -119,7 +119,7 @@ function deploy() {
   if [ $LOGGEDIN_USER == 'system:admin' ] ; then
     oc $ARG_OC_OPS adm policy add-role-to-user admin $ARG_USERNAME -n $PRJ_PREFIX-cicd >/dev/null 2>&1
     
-    oc $ARG_OC_OPS annotate --overwrite namespace $PRJ_PREFIX-cicd  app=openshift-cd-$PRJ_PREFIX >/dev/null 2>&1
+    oc $ARG_OC_OPS annotate --overwrite namespace $PRJ_PREFIX-cicd  app=$PRJ_PREFIX-openshift-cicd >/dev/null 2>&1
   fi
 
   sleep 2
