@@ -10,11 +10,6 @@ metadata:
   name: cicd
 message: "Use the following credentials for login:\nJenkins: use your OpenShift credentials\nNexus: admin/admin123\nSonarQube: admin/admin\n"
 parameters:
-- displayName: Project Name
-  description: Project Name
-  value: "sysmi-devops"
-  name: PROJ_NAME
-  required: true
 - displayName: Ephemeral
   description: Use no persistent storage for Nexus
   value: "false"
@@ -133,7 +128,11 @@ objects:
           - -x
           - -c
           - 
-            oc new-app jenkins:custom --param=MAX_MEMORY=4Gi --param=MEMORY_MEMORY=2Gi --param=MAX_CPU=2 --param=MIN_CPU=500m 
+            oc new-app jenkins:custom -e OPENSHIFT_JENKINS_JVM_ARCH=x86_64 -e CONTAINER_HEAP_PERCENT=0.9 -e CONTAINER_INITIAL_PERCENT=0.4 -e OPENSHIFT_ENABLE_OAUTH=true -e JAVA_GC_OPTS=-XX:+UseParallelGC -XX:MinHeapFreeRatio=5 -XX:MaxHeapFreeRatio=10 -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -XX:MetaspaceSize=1G
+            
+            sleep 2
+
+            oc set resources dc/jenkins --limits=cpu=2,memory=4Gi --requests=cpu=500m,memory=2Gi 
 
             sleep 2
             

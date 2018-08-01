@@ -1,5 +1,7 @@
 #!/bin/bash
 
+BASEDIR="$(pwd)"
+
 echo "###############################################################################"
 echo "#  MAKE SURE YOU ARE LOGGED IN:                                               #"
 echo "#  $ oc login http://console.your.openshift.com                               #"
@@ -122,9 +124,10 @@ function deploy() {
     oc $ARG_OC_OPS annotate --overwrite namespace $PRJ_PREFIX-cicd  app=$PRJ_PREFIX-openshift-cicd >/dev/null 2>&1
   fi
 
-  local template=https://raw.githubusercontent.com/$GITHUB_ACCOUNT/openshift-cd-demo/$GITHUB_REF/cicd-template.yaml
-  echo "Using template $template"
-  oc $ARG_OC_OPS new-app -f $template --param=EPHEMERAL=$ARG_EPHEMERAL --param=PROJ_PREFIX=$PRJ_PREFIX -n $PRJ_PREFIX-cicd 
+#   local template=https://raw.githubusercontent.com/$GITHUB_ACCOUNT/openshift-cd-demo/$GITHUB_REF/cicd-template.yaml
+  TEMPLATE="$BASEDIR/cicd-deploy.yaml"
+  echo "Using template $TEMPLATE"
+  oc $ARG_OC_OPS new-app -f $TEMPLATE --param=EPHEMERAL=$ARG_EPHEMERAL -n $PRJ_PREFIX-cicd 
 }
 
 function make_idle() {
