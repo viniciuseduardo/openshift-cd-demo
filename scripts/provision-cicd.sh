@@ -107,12 +107,12 @@ done
 
 LOGGEDIN_USER=$(oc $ARG_OC_OPS whoami)
 OPENSHIFT_USER=${ARG_USERNAME:-$LOGGEDIN_USER}
-PRJ_PREFIX=${ARG_PROJECT_PREFIX:-`echo $OPENSHIFT_USER | sed -e 's/[-@].*//g'`}
+PRJ_PREFIX=${ARG_PROJECT_PREFIX:-$OPENSHIFT_USER}
 GITHUB_ACCOUNT=${GITHUB_ACCOUNT:-viniciuseduardo}
 GITHUB_REF=${GITHUB_REF:-ocp-3.9}
 
 function deploy() {
-  oc $ARG_OC_OPS new-project $PRJ_PREFIX-cicd  --display-name="Sys Manager - DevOps - CI/CD"
+  oc $ARG_OC_OPS new-project $PRJ_PREFIX-cicd  --display-name="$PRJ_PREFIX-cicd"
 
   sleep 2
 
@@ -122,15 +122,9 @@ function deploy() {
     oc $ARG_OC_OPS annotate --overwrite namespace $PRJ_PREFIX-cicd  app=openshift-cd-$PRJ_PREFIX >/dev/null 2>&1
   fi
 
-  sleep 2
-
-  oc new-app openshift/jenkins:custom -n $PRJ_PREFIX-cicd
-
-  sleep 2
-
   local template=https://raw.githubusercontent.com/$GITHUB_ACCOUNT/openshift-cd-demo/$GITHUB_REF/cicd-template.yaml
   echo "Using template $template"
-  oc $ARG_OC_OPS new-app -f $template --param=EPHEMERAL=$ARG_EPHEMERAL -n $PRJ_PREFIX-cicd 
+  oc $ARG_OC_OPS new-app -f $template --param=EPHEMERAL=$ARG_EPHEMERAL --param=PROJ_PREFIX=$PRJ_PREFIX -n $PRJ_PREFIX-cicd 
 }
 
 function make_idle() {
@@ -199,7 +193,7 @@ echo_header "OpenShift CI/CD Deploy ($(date))"
 case "$ARG_COMMAND" in
     delete)
         echo "Delete CI/CD..."
-        oc $ARG_OC_OPS delete project dev-$PRJ_PREFIX stage-$PRJ_PREFIX $PRJ_PREFIX-cicd
+        oc $ARG_OC_OPS delete project $PRJ_PREFIX-cicd
         echo
         echo "Delete completed successfully!"
         ;;
