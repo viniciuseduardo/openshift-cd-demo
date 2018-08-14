@@ -122,11 +122,11 @@ objects:
           - -x
           - -c
           - 
-            oc new-app -f https://raw.githubusercontent.com/viniciuseduardo/openshift-cd-demo/ocp-3.9/jenkins.json --template=jenkins-persistent --param=MEMORY_LIMIT=2Gi --param=VOLUME_CAPACITY=10Gi --param=JENKINS_IMAGE_STREAM_TAG=jenkins:custom --env=OPENSHIFT_JENKINS_JVM_ARCH=x86_64 --env=CONTAINER_HEAP_PERCENT=0.9 --env=CONTAINER_INITIAL_PERCENT=0.4 --env=JAVA_GC_OPTS='-XX:+UseParallelGC -XX:MinHeapFreeRatio=5 -XX:MaxHeapFreeRatio=10 -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -XX:MetaspaceSize=1G'
+            oc new-app -f https://raw.githubusercontent.com/viniciuseduardo/openshift-cd-demo/ocp-3.9/jenkins.json --param=MEMORY_LIMIT=2Gi --param=VOLUME_CAPACITY=10Gi --param=JENKINS_IMAGE_STREAM_TAG=jenkins:custom --env=OPENSHIFT_JENKINS_JVM_ARCH=x86_64 --env=CONTAINER_HEAP_PERCENT=0.9 --env=CONTAINER_INITIAL_PERCENT=0.4 --env=JAVA_GC_OPTS='-XX:+UseParallelGC -XX:MinHeapFreeRatio=5 -XX:MaxHeapFreeRatio=10 -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -XX:MetaspaceSize=1G'
             
             sleep 2
 
-            oc new-app -f https://raw.githubusercontent.com/viniciuseduardo/openshift-cd-demo/ocp-3.9/sonarqube.yaml --param=SONARQUBE_VERSION=7.0 --param=SONAR_MAX_MEMORY=4Gi
+            oc new-app -f https://raw.githubusercontent.com/viniciuseduardo/openshift-cd-demo/ocp-3.9/sonarqube.yaml
 
             sleep 2
 
