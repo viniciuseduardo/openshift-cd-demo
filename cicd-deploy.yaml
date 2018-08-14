@@ -130,7 +130,7 @@ objects:
 
             sleep 2
 
-            oc new-app -f https://raw.githubusercontent.com/viniciuseduardo/openshift-cd-demo/ocp-3.9/nexus3.yaml --param=NEXUS_VERSION=3.8.0 --param=MAX_MEMORY=1Gi
+            oc new-app -f https://raw.githubusercontent.com/viniciuseduardo/openshift-cd-demo/ocp-3.9/nexus3.yaml --param=NEXUS_VERSION=3.7.1 --param=MAX_MEMORY=1Gi
           image: openshift/origin:v3.9.0
           name: cicd-installer-job
           resources: {}
